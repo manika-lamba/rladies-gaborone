@@ -14,4 +14,3 @@ This is a nice, clean set of texts perfect for exploring Natural Language Proces
 3. Parsing: Can you train implement a parser to automatically extract the syntactic relationships between words?
 4. Authorship identification: Can you correctly identify the author of a previously unseen address?
 
-### Source: https://www.kaggle.com/datasets/rtatman/state-of-the-union-corpus-1989-2017
