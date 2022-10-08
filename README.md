@@ -1,4 +1,10 @@
-## About Dataset: State of the Union Corpus (1790 - 2018)
+## About Dataset
+
+### 1. Amazon Book Reviews
+
+A CSV file containing 5000 book reviews web-scrapped from Amazon in 2018
+
+### 2. State of the Union Corpus (1790 - 2018)
 
 ### Context:
 The State of the Union is an annual address by the President of the United States before a joint session of congress. In it, the President reviews the previous year and lays out his legislative agenda for the coming year.
