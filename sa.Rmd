@@ -1,0 +1,315 @@
+---
+title: "Sentiment Analysis with R"
+author: "Manika Lamba"
+date: "October 08, 2022"
+output:
+  pdf_document: default
+  learnr::tutorial: default
+runtime: shiny_prerendered
+---
+
+## #PART I
+
+First load the libraries and the dataset required to perform sentiment analysis
+
+```{r Loading}
+#Load libraries
+library(syuzhet)
+library(tm)
+library(twitteR)
+
+
+#Load dataset
+data<- read.csv("https://raw.githubusercontent.com/textmining-infopros/chapter7/master/7b_dataset.csv")
+
+#Avoid error related to tolower() invalid multibyte string 
+data[,sapply(data,is.character)] <- sapply(
+  data[,sapply(data,is.character)],
+  iconv,"WINDOWS-1252","UTF-8")
+```
+
+The syuzhet package works only on vectors. So, the data was converted to a vector.
+
+```{r Vector}
+#syuzhet package works only on vectors. So, the data was converted to a vector
+vector <- as.vector(t(data))
+```
+
+For each book review, scores were determined for different emotions, where a score with value 0 implies the emotion is not associated with the review, and the score of value 1 means there is an association between the emotion and the review. Subsequently, a higher score indicates stronger emotion.
+
+```{r Sentiment Analysis}
+#Sentiment analysis
+emotion.data <- get_nrc_sentiment(vector)
+```
+
+The following output gives a better representation of the book reviews with the associated emotions.
+
+```{r Emotions}
+emotion.data2 <- cbind(data, emotion.data)
+```
+
+Sentiment scores were then computed for each book review using the built-in dictionary of the package that assigns sentiment score to different words.
+
+![Fig. 1](1.png)
+
+Fig. 1 shows the sentiment for the different range of sentiment scores.
+
+```{r Sentiment Score}
+sentiment.score <- get_sentiment(vector)
+```
+
+Reviews were then combined with both emotion and sentiment scores.
+
+```{r Combine Emotion and Sentiment Score}
+sentiment.data = cbind(sentiment.score, emotion.data2)
+```
+
+Positive, negative, and neutral reviews were then segregated and saved in three different CSV files.
+
+```{r Download the CSV for Polarity}
+#Getting positive, negative, and neutral reviews with associated scores
+positive.reviews <- sentiment.data[which(sentiment.data$sentiment.score > 0),]
+write.csv(positive.reviews, "positive.reviews.csv")
+
+negative.reviews <- sentiment.data[which(sentiment.data$sentiment.score < 0),]
+write.csv(negative.reviews, "negative.reviews.csv")
+
+neutral.reviews <- sentiment.data[which(sentiment.data$sentiment.score == 0),]
+write.csv(neutral.reviews, "neutral.reviews.csv")
+```
+
+Out of 5000 book reviews, 3587 were identified as positive, 1349 were identified as negative, and 64 were identified as neutral.
+
+Now, we will plot a graph to visualize how the narrative is structured with the sentiments across the book reviews.
+
+```{r Percentage-Based Means}
+#Plot1: Percentage-Based Means
+percent_vals <- get_percentage_values(sentiment.score, bins=20)
+
+plot(percent_vals,
+     type="l",
+     main="Amazon Book Reviews using Percentage-Based Means",
+     xlab="Narrative Time",
+     ylab="Emotional Valence",
+     col="red")
+```
+
+The x-axis presents the flow of time from start to end of the book reviews, and the y-axis presents the sentiments. In order to compare the trajectory of shapes, the text was divided into an equal number of chunks, and then the mean sentence valence for each chunk was calculated. For this case study, the sentiments from the reviews were binned into 20 chunks where each chunk had 20 sentences.
+
+The figure shows that the book reviews remain in the positive zone for all the 20 chunks. It dropped towards a comparatively less positive zone at many instances but never reached a neutral or negative zone.
+
+**The limitation of the percentage-based sentiment mean normalization method is that in large texts, extreme emotional valence gets watered down, and the comparison between different books or texts becomes difficult.**
+
+To overcome the limitations of the percentage-based sentiment mean normalization method, the discrete cosine transformation (DCT) method was used as it gives an improved representation of edge values.
+
+```{r Discrete Cosine Transformation }
+#Plot2: Discrete Cosine Transformation (DCT)
+dct_values <- get_dct_transform(sentiment.score,
+                                low_pass_size = 5,
+                                x_reverse_len = 100,
+                                scale_vals = F,
+                                scale_range = T)
+
+plot(dct_values,
+     type ="l",
+     main ="Amazon Book Reviews using Transformed Values",
+     xlab = "Narrative Time",
+     ylab = "Emotional Valence",
+     col = "red")
+```
+
+The x-axis presents the flow of time from start to end of the book reviews, and the y-axis presents the sentiments where 5 reviews were retained for low pass filtering, and 100 were returned.
+
+The transformed graph from the percentage-mean method. The reviews were of negative valence at the beginning that changed to positive valence and again dropped towards negative valence.
+
+Now, we will visualize emotions using a bar plot.
+
+```{r Emotions Graph}
+#Plot3: Emotions Graph
+barplot(sort(colSums(prop.table(emotion.data[, 1:8]))),
+        horiz=TRUE,
+        cex.names=0.7,
+        las=1,
+        main="Emotions in Amazon Book Reviews",
+        xlab = "Percentage")
+```
+
+Eight different emotions, viz., anticipation, trust, joy, sadness, surprise, fear, anger, and disgust can be seen.
+
+# PART II
+
+First, let's load in the libraries we'll use and our data.
+
+```{r Loading Libraries}
+# load in the libraries we'll need
+library(tidyverse)
+library(tidytext)
+library(glue)
+library(stringr)
+library(data.table)
+
+# get a list of the files in the input directory
+files <- list.files("C:\\Users\\raman\\OneDrive\\Desktop\\rladies\\data")
+```
+
+Let's start with the first file. The first thing we need to do is tokenize it, or break it into individual words.
+
+```{r Tokenization}
+# stick together the path to the file & 1st file name
+fileName <- glue("C:\\Users\\raman\\OneDrive\\Desktop\\rladies\\data\\", files[1], sep = "")
+# get rid of any sneaky trailing spaces
+fileName <- trimws(fileName)
+
+# read in the new file
+fileText <- glue(read_file(fileName))
+# remove any dollar signs (they're special characters in R)
+fileText <- gsub("\\$", "", fileText) 
+
+# tokenize
+tokens <- data_frame(text = fileText) %>% unnest_tokens(word, text)
+```
+
+Now that we have a list of tokens, we need to compare them against a list of words with either positive or negative sentiment.
+
+A list of words associated with a specific sentiment is usually called a "sentiment lexicon".
+
+Because we're using the *tidytext* package, we actually already have some of these lists. I'm going to be using the **"bing"** list, which was developed by Bing Liu and co-authors.
+
+```{r Sentiment Lexicon}
+# get the sentiment from the first text: 
+tokens %>%
+  inner_join(get_sentiments("bing")) %>% # pull out only sentiment words
+  count(sentiment) %>% # count the # of positive & negative words
+  spread(sentiment, n, fill = 0) %>% # made data wide rather than narrow
+  mutate(sentiment = positive - negative) # # of positive words - # of negative words
+```
+
+So this text has **n** negative polarity words and **n** positive polarity words. This means that there are **n** more positive than negative words in this text.
+
+Now that we know how to get the sentiment for a given text, let's write a function to do this more quickly and easily and then apply that function to every text in our dataset.
+
+```{r Function for Sentiment}
+# write a function that takes the name of a file and returns the # of positive
+# sentiment words, negative sentiment words, the difference & the normalized difference
+
+GetSentiment <- function(file){
+  # get the file
+  fileName <- glue("C:\\Users\\raman\\OneDrive\\Desktop\\rladies\\data\\", file, sep = "")
+  # get rid of any sneaky trailing spaces
+  fileName <- trimws(fileName)
+  
+  # read in the new file
+  fileText <- glue(read_file(fileName))
+  # remove any dollar signs (they're special characters in R)
+  fileText <- gsub("\\$", "", fileText) 
+  
+  # tokenize
+  tokens <- data_frame(text = fileText) %>% unnest_tokens(word, text)
+  
+  # get the sentiment from the first text: 
+sentiment <- tokens %>%
+  inner_join(get_sentiments("bing")) %>% # pull out only sentiment words
+  count(sentiment) %>% # count the # of positive & negative words
+  spread(sentiment, n, fill = 0) %>% # made data wide rather than narrow
+  mutate(sentiment = positive - negative) %>% # # of positive words - # of negative words
+  mutate(file = file) %>% # add the name of our file
+  mutate(year = as.numeric(str_match(file, "\\d{4}"))) %>% # add the year
+  mutate(president = str_match(file, "(.*?)_")[2]) # add president
+  
+  # return our sentiment dataframe
+  return(sentiment)
+}
+
+GetSentiment(files[1])
+```
+
+Now, let's apply our function over every file in our dataset.
+
+```{r Dataset}
+
+# file to put our output in
+sentiments <- data_frame()
+
+# get the sentiments for each file in our dataset
+for(i in files){
+  sentiments <- rbind(sentiments, GetSentiment(i))
+}
+
+# summarize the sentiment measures
+summary(sentiments)
+```
+
+It looks like every State of the Union address in this dataset has an overall positive sentiment (according to this measure). This isn't very surprising: most text, especially formal text, tends to have a positive skew.
+
+Let's plot our sentiment analysis scores to see if we can notice any other patterns. Has sentiment changed over time? What about between presidents?
+
+```{r Change over time}
+# plot of sentiment over time & automatically choose a method to model the change
+ggplot(sentiments, aes(x = as.numeric(year), y = sentiment)) + 
+  geom_point(aes(color = president))+ # add points to our plot, color-coded by president
+  geom_smooth(method = "auto") # pick a method & fit a model
+```
+
+While it looks like there haven't been any strong trends over time, the line above suggests that presidents from the Democratic party (Clinton and Obama) have a slightly more positive sentiment than presidents from the Republican party (Bush and Trump). Let's look at individual presidents and see if that pattern holds:
+
+```{r}
+# plot of sentiment by president
+ggplot(sentiments, aes(x = president, y = sentiment, color = president)) + 
+  geom_boxplot() # draw a boxplot for each president
+```
+
+It looks like this is a pretty strong pattern. Let's directly compare the two parties to see if there's a reliable difference between them. We'll need to manually label which presidents were Democratic and which were Republican and then test to see if there's a difference in their sentiment scores.
+
+```{r}
+# is the difference between parties significant?
+# get democratic presidents & add party affiliation
+democrats <- sentiments %>%
+  filter(president == c("Clinton","Obama")) %>%
+  mutate(party = "D")
+```
+
+```{r}
+# get democratic presidents & party add affiliation
+republicans <- sentiments %>%
+  filter(president != "Clinton" & president != "Obama") %>%
+  mutate(party = "R")
+```
+
+```{r}
+
+# join both
+byParty <- full_join(democrats, republicans)
+
+# the difference between the parties is significant
+t.test(democrats$sentiment, republicans$sentiment)
+
+# plot sentiment by party
+ggplot(byParty, aes(x = party, y = sentiment, color = party)) + geom_boxplot() + geom_point()
+```
+
+So it looks like there is a reliable difference in the sentiment of the State of the Union addresses given by Democratic and Republican presidents, at least from 1989 to 2017.
+
+There a couple things to keep in mind with this analysis, though:
+
+-   We didn't correct for the length of the documents. It could be that the State of the Union addresses from **Democratic presidents have more positive words** because they are longer rather than because they are more positive.
+
+-   We're using a **general-purpose list of words** rather than one specifically designed for analyzing political language.
+
+-   Furthermore, we only **used one sentiment analysis list**.
+
+------------------------------------------------------------------------
+
+# Exercise
+
+### Use Animal Crossing Data and perform sentiment analysis using either PART-2
+
+Tidy Tuesday Week 19: <https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-05-05/readme.md>
+
+Animal Crossing is a 2020 "sandbox" game, where your character lives on an island with a variety of different animal characters and collects resources to progress and upgrade the island. It has had mixed reviews: either it is the best game ever, or boring and pointless. It has also been criticized for the fact that you can only have one save game per console ("forcing" families/couples to buy extra consoles to avoid fights over island decor..)
+
+"user_reviews" includes the date of a review posting, the user_name of the writer, the grade they give the game (0-10), and the text they wrote.
+
+```{r}
+user_reviews <- readr::read_tsv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-05-05/user_reviews.tsv') #download from tidytuesday github
+head(user_reviews)
+```
