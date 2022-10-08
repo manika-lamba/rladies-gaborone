@@ -1,3 +1,10 @@
+
+![Sentiment Anaysis with R](poster.jpeg)
+
+## Link to Etherpad
+
+https://etherpad.wikimedia.org/p/sentiment_analysis_with_R
+
 ## About Dataset
 
 ### 1. Amazon Book Reviews
